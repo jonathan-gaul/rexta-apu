@@ -1,0 +1,17 @@
+<?xml version="1" encoding="UTF-8"?>
+<!DOCTYPE gowin-fpga-project>
+<Project>
+    <Template>FPGA</Template>
+    <Version>5</Version>
+    <Device name="GW1NZ-1" pn="GW1NZ-LV1QN48C6/I5">gw1nz1-015</Device>
+    <FileList>
+        <File path="src/apu_top.sv" type="file.verilog" enable="1"/>
+        <File path="src/audrey_top_test.sv" type="file.verilog" enable="1"/>
+        <File path="src/gowin_rpll/gowin_rpll.v" type="file.verilog" enable="1"/>
+        <File path="src/i2s_tx.sv" type="file.verilog" enable="1"/>
+        <File path="src/wavegen.sv" type="file.verilog" enable="1"/>
+        <File path="src/wavegen_adsr.sv" type="file.verilog" enable="1"/>
+        <File path="src/wavegen_osc.sv" type="file.verilog" enable="1"/>
+        <File path="src/audrey_top_test.cst" type="file.cst" enable="1"/>
+    </FileList>
+</Project>

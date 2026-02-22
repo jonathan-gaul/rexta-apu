@@ -1,0 +1,21 @@
+// =============================================================================
+// audrey_top_test.cst
+// Physical constraints for Audrey first audio test
+// Device: Tang Nano 1K (GW1NZ-LV1QN48C6/I5)
+// =============================================================================
+
+IO_LOC "clk_27m"    47;
+IO_LOC "i2s_bclk"  16;
+IO_LOC "i2s_data"  17;
+IO_LOC "i2s_lrclk" 18;
+IO_LOC "led_r"     10;
+IO_LOC "led_g"     11;
+IO_LOC "led_b"     13;
+
+IO_PORT "clk_27m"    PULL_MODE=NONE;
+IO_PORT "i2s_bclk"  PULL_MODE=NONE DRIVE=8;
+IO_PORT "i2s_data"  PULL_MODE=NONE DRIVE=8;
+IO_PORT "i2s_lrclk" PULL_MODE=NONE DRIVE=8;
+IO_PORT "led_r"     PULL_MODE=NONE DRIVE=8;
+IO_PORT "led_g"     PULL_MODE=NONE DRIVE=8;
+IO_PORT "led_b"     PULL_MODE=NONE DRIVE=8;
