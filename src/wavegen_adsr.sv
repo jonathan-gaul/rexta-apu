@@ -97,28 +97,28 @@ assign gate_fall = ~gate & gate_prev;
 // Returns the number of sample strobes between each envelope step.
 // 20-bit counter supports up to ~21 seconds at 48kHz.
 // =============================================================================
-logic [19:0] attack_rate;
-logic [19:0] dr_rate;       // shared decay/release table
+logic [12:0] attack_rate;
+logic [12:0] dr_rate;       // shared decay/release table
 
 always_comb begin
     case (attack)
-        4'd0:  attack_rate = 20'd1;
-        4'd1:  attack_rate = 20'd2;
-        4'd2:  attack_rate = 20'd3;
-        4'd3:  attack_rate = 20'd4;
-        4'd4:  attack_rate = 20'd7;
-        4'd5:  attack_rate = 20'd10;
-        4'd6:  attack_rate = 20'd13;
-        4'd7:  attack_rate = 20'd15;
-        4'd8:  attack_rate = 20'd19;
-        4'd9:  attack_rate = 20'd47;
-        4'd10: attack_rate = 20'd94;
-        4'd11: attack_rate = 20'd150;
-        4'd12: attack_rate = 20'd188;
-        4'd13: attack_rate = 20'd562;
-        4'd14: attack_rate = 20'd938;
-        4'd15: attack_rate = 20'd1500;
-        default: attack_rate = 20'd1;
+        4'd0:  attack_rate = 13'd1;
+        4'd1:  attack_rate = 13'd2;
+        4'd2:  attack_rate = 13'd3;
+        4'd3:  attack_rate = 13'd4;
+        4'd4:  attack_rate = 13'd7;
+        4'd5:  attack_rate = 13'd10;
+        4'd6:  attack_rate = 13'd13;
+        4'd7:  attack_rate = 13'd15;
+        4'd8:  attack_rate = 13'd19;
+        4'd9:  attack_rate = 13'd47;
+        4'd10: attack_rate = 13'd94;
+        4'd11: attack_rate = 13'd150;
+        4'd12: attack_rate = 13'd188;
+        4'd13: attack_rate = 13'd562;
+        4'd14: attack_rate = 13'd938;
+        4'd15: attack_rate = 13'd1500;
+        default: attack_rate = 13'd1;
     endcase
 end
 
@@ -127,23 +127,23 @@ always_comb begin
     logic [3:0] dr_sel;
     dr_sel = (state == DECAY) ? decay : release_rate;
     case (dr_sel)
-        4'd0:  dr_rate = 20'd1;
-        4'd1:  dr_rate = 20'd4;
-        4'd2:  dr_rate = 20'd9;
-        4'd3:  dr_rate = 20'd14;
-        4'd4:  dr_rate = 20'd21;
-        4'd5:  dr_rate = 20'd32;
-        4'd6:  dr_rate = 20'd38;
-        4'd7:  dr_rate = 20'd45;
-        4'd8:  dr_rate = 20'd56;
-        4'd9:  dr_rate = 20'd141;
-        4'd10: dr_rate = 20'd281;
-        4'd11: dr_rate = 20'd450;
-        4'd12: dr_rate = 20'd562;
-        4'd13: dr_rate = 20'd1688;
-        4'd14: dr_rate = 20'd2812;
-        4'd15: dr_rate = 20'd4500;
-        default: dr_rate = 20'd1;
+        4'd0:  dr_rate = 13'd1;
+        4'd1:  dr_rate = 13'd4;
+        4'd2:  dr_rate = 13'd9;
+        4'd3:  dr_rate = 13'd14;
+        4'd4:  dr_rate = 13'd21;
+        4'd5:  dr_rate = 13'd32;
+        4'd6:  dr_rate = 13'd38;
+        4'd7:  dr_rate = 13'd45;
+        4'd8:  dr_rate = 13'd56;
+        4'd9:  dr_rate = 13'd141;
+        4'd10: dr_rate = 13'd281;
+        4'd11: dr_rate = 13'd450;
+        4'd12: dr_rate = 13'd562;
+        4'd13: dr_rate = 13'd1688;
+        4'd14: dr_rate = 13'd2812;
+        4'd15: dr_rate = 13'd4500;
+        default: dr_rate = 13'd1;
     endcase
 end
 
@@ -159,15 +159,15 @@ assign sustain_level = {sustain, sustain};  // replicate nibble: 0xS -> 0xSS
 // Envelope counter and rate divider
 // =============================================================================
 logic [7:0]  envelope;      // current envelope value (0-255)
-logic [19:0] rate_counter;  // counts sample strobes between steps
-logic [19:0] current_rate;  // rate for current state
+logic [12:0] rate_counter;  // counts sample strobes between steps
+logic [12:0] current_rate;  // rate for current state
 
 always_comb begin
     case (state)
         ATTACK:  current_rate = attack_rate;
         DECAY:   current_rate = dr_rate;
         RELEASE: current_rate = dr_rate;
-        default: current_rate = 20'd1;
+        default: current_rate = 13'd1;
     endcase
 end
 
@@ -177,19 +177,19 @@ always @(posedge clk) begin
         // This handles the case where gate is hardwired high
         state        <= IDLE;
         envelope     <= 8'h00;
-        rate_counter <= 20'h0;
+        rate_counter <= 13'h0;
     end else if (sample_strobe) begin
 
         // --- Gate edge handling (highest priority) ---
         // Also handle gate already high at startup (state==IDLE and gate==1)
         if (gate_rise || (state == IDLE && gate)) begin
             state        <= ATTACK;
-            rate_counter <= 20'h0;
+            rate_counter <= 13'h0;
             // Note: don't reset envelope on re-trigger — allows retriggering
             // mid-release to produce natural-sounding re-attack from current level
         end else if (gate_fall) begin
             state        <= RELEASE;
-            rate_counter <= 20'h0;
+            rate_counter <= 13'h0;
         end else begin
 
             // --- State machine ---
@@ -201,14 +201,14 @@ always @(posedge clk) begin
 
                 ATTACK: begin
                     if (rate_counter >= current_rate - 1) begin
-                        rate_counter <= 20'h0;
+                        rate_counter <= 13'h0;
                         if (envelope == 8'hFF) begin
                             state <= DECAY;
                         end else begin
                             envelope <= envelope + 8'h01;
                         end
                     end else begin
-                        rate_counter <= rate_counter + 20'h1;
+                        rate_counter <= rate_counter + 13'h1;
                     end
                 end
 
@@ -216,10 +216,10 @@ always @(posedge clk) begin
                     if (envelope <= sustain_level) begin
                         state <= SUSTAIN;
                     end else if (rate_counter >= current_rate - 1) begin
-                        rate_counter <= 20'h0;
+                        rate_counter <= 13'h0;
                         envelope     <= envelope - 8'h01;
                     end else begin
-                        rate_counter <= rate_counter + 20'h1;
+                        rate_counter <= rate_counter + 13'h1;
                     end
                 end
 
@@ -232,10 +232,10 @@ always @(posedge clk) begin
                     if (envelope == 8'h00) begin
                         state <= IDLE;
                     end else if (rate_counter >= current_rate - 1) begin
-                        rate_counter <= 20'h0;
+                        rate_counter <= 13'h0;
                         envelope     <= envelope - 8'h01;
                     end else begin
-                        rate_counter <= rate_counter + 20'h1;
+                        rate_counter <= rate_counter + 13'h1;
                     end
                 end
 

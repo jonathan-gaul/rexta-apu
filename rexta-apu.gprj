@@ -9,9 +9,7 @@
         <File path="src/audrey_top_test.sv" type="file.verilog" enable="1"/>
         <File path="src/gowin_rpll/gowin_rpll.v" type="file.verilog" enable="1"/>
         <File path="src/i2s_tx.sv" type="file.verilog" enable="1"/>
-        <File path="src/wavegen.sv" type="file.verilog" enable="1"/>
-        <File path="src/wavegen_adsr.sv" type="file.verilog" enable="1"/>
-        <File path="src/wavegen_osc.sv" type="file.verilog" enable="1"/>
+        <File path="src/voices.sv" type="file.verilog" enable="1"/>
         <File path="src/audrey_top_test.cst" type="file.cst" enable="1"/>
     </FileList>
 </Project>
