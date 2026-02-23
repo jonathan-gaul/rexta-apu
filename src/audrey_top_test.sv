@@ -43,7 +43,10 @@ module audrey_top_test (
     // RGB LED (active low)
     output logic led_r,
     output logic led_g,
-    output logic led_b
+    output logic led_b,
+
+    // Debug
+    output logic dbg_req
 );
 
 // =============================================================================
@@ -109,7 +112,7 @@ wavegen voice (
     .rst_n        (rst_n),
     .sample_strobe(sample_req),
 
-    .wave_ctrl    (8'b0010_0001),   // SAW=1, GATE=1
+    .wave_ctrl    (8'b0000_1001),   // SAW=1, GATE=1
     .freq         (16'h0261),       // ~440Hz at 47.46kHz sample rate
     .pulse_width  (12'h800),        // 50% (unused for saw)
 
@@ -129,6 +132,9 @@ wavegen voice (
 // Mono — same sample to both channels
 assign left_sample  = voice_sample;
 assign right_sample = voice_sample;
+
+// Debug output
+assign dbg_req = sample_req;
 
 // =============================================================================
 // RGB LED — green heartbeat, others off

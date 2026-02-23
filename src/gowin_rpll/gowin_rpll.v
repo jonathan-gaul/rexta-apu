@@ -5,7 +5,7 @@
 //IP Version: 1.0
 //Part Number: GW1NZ-LV1QN48C6/I5
 //Device: GW1NZ-1
-//Created Time: Sun Feb 22 17:02:36 2026
+//Created Time: Mon Feb 23 20:24:17 2026
 
 module Gowin_rPLL (clkout, clkin);
 

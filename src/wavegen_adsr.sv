@@ -173,13 +173,16 @@ end
 
 always @(posedge clk) begin
     if (!rst_n) begin
+        // If gate is already high at reset, go straight to ATTACK
+        // This handles the case where gate is hardwired high
         state        <= IDLE;
         envelope     <= 8'h00;
         rate_counter <= 20'h0;
     end else if (sample_strobe) begin
 
         // --- Gate edge handling (highest priority) ---
-        if (gate_rise) begin
+        // Also handle gate already high at startup (state==IDLE and gate==1)
+        if (gate_rise || (state == IDLE && gate)) begin
             state        <= ATTACK;
             rate_counter <= 20'h0;
             // Note: don't reset envelope on re-trigger — allows retriggering

@@ -5,172 +5,102 @@
 // Project : rexta / Audrey
 // Device  : Tang Nano 1K (Gowin GW1NZ-LV1)
 // Author  : rexta project
-// Version : 0.1
+// Version : 0.5 (back to v0.3 with inverted BCLK output)
 //
-// Drives a standard I2S interface suitable for the PCM5102A DAC.
-//
-// Signal timing (standard I2S, Philips format):
-//   - LRCLK low  = left  channel
-//   - LRCLK high = right channel
-//   - Data is MSB first, transitions on BCLK falling edge,
-//     captured by DAC on BCLK rising edge
-//   - Data is delayed one BCLK cycle after LRCLK transition (I2S format)
-//
-// Parameters:
-//   MCLK_DIV : divide clk_audio to produce BCLK
-//               clk_audio = 49.152MHz
-//               BCLK = 48kHz * 16 bits * 2 ch = 1.536MHz
-//               49.152MHz / 1.536MHz = 32 -> MCLK_DIV = 16 (toggle = half period)
-//
-// Sample strobe:
-//   The i2s_tx generates its own sample_strobe output, asserted when it
-//   needs a new stereo sample pair. This replaces the external strobe used
-//   during simulation — the I2S timing IS the sample clock.
-//
-// PCM5102A pin connections:
-//   BCK  <- bclk
-//   LRCK <- lrclk
-//   DIN  <- data
-//   SCK  <- leave floating or tie to MCLK if available (PCM5102A has internal PLL)
-//   FMT  <- GND (I2S format)
-//   DEMP <- GND (no de-emphasis)
-//   XSMT <- VCC (unmute)
-//   FLT  <- GND (normal latency filter)
+// v0.3 produced data on DIN but transitions were on BCLK rising edge.
+// Inverting BCLK output means the DAC sees transitions on its falling edge.
 // =============================================================================
 
 module i2s_tx (
-    // -----------------------------------------------------------------
-    // Clock and reset
-    // -----------------------------------------------------------------
-    input  logic        clk,            // 49.152MHz audio clock
+    input  logic        clk,
     input  logic        rst_n,
 
-    // -----------------------------------------------------------------
-    // Sample input — latched when sample_req is asserted
-    // -----------------------------------------------------------------
-    input  logic [15:0] left_in,        // 16-bit signed left  channel
-    input  logic [15:0] right_in,       // 16-bit signed right channel
-    output logic        sample_req,     // asserted one clk before new sample needed
+    input  logic [15:0] left_in,
+    input  logic [15:0] right_in,
+    output logic        sample_req,
 
-    // -----------------------------------------------------------------
-    // I2S output pins
-    // -----------------------------------------------------------------
-    output logic        bclk,           // bit clock  (1.536MHz)
-    output logic        lrclk,          // LR clock   (48kHz)
-    output logic        data            // serial data (MSB first)
+    output logic        bclk,
+    output logic        lrclk,
+    output logic        data
 );
 
-// =============================================================================
-// Clock divider — generate BCLK at 1.536MHz from 49.152MHz
-// 49.152 / 1.536 = 32, so toggle every 16 clk cycles
-// =============================================================================
-localparam BCLK_DIV = 16;              // toggle period in clk cycles
+localparam HALF_PERIOD = 16;
 
-logic [4:0] bclk_counter;
-logic       bclk_rise;                 // one clk pulse on BCLK rising edge
-logic       bclk_fall;                 // one clk pulse on BCLK falling edge
+logic [3:0] clk_div;
+logic [5:0] bit_count;
+logic       bclk_int;   // internal BCLK before inversion
 
-always @(posedge clk) begin
-    if (!rst_n) begin
-        bclk_counter <= 5'h0;
-        bclk         <= 1'b0;
-    end else begin
-        if (bclk_counter == BCLK_DIV - 1) begin
-            bclk_counter <= 5'h0;
-            bclk         <= ~bclk;
-        end else begin
-            bclk_counter <= bclk_counter + 5'h1;
-        end
-    end
-end
+// BCLK internal: high when clk_div < HALF_PERIOD/2
+assign bclk_int = (clk_div < HALF_PERIOD / 2);
 
-// Edge detection on bclk
-logic bclk_prev;
-always @(posedge clk) bclk_prev <= bclk;
-assign bclk_rise = bclk & ~bclk_prev;
-assign bclk_fall = ~bclk & bclk_prev;
+// Invert BCLK on output so data transitions appear on falling edge at DAC
+assign bclk = ~bclk_int;
 
-// =============================================================================
-// Bit counter and LRCLK generation
-// 32 BCLK cycles per channel (16 data bits + 16 padding), 64 total per frame
-// LRCLK toggles every 32 BCLK cycles
-// =============================================================================
-logic [5:0] bit_counter;   // 0-63 across full stereo frame
+// LRCLK
+assign lrclk = bit_count[5];
 
 always @(posedge clk) begin
     if (!rst_n) begin
-        bit_counter <= 6'h0;
-        lrclk       <= 1'b0;
-    end else if (bclk_rise) begin
-        if (bit_counter == 6'd63) begin
-            bit_counter <= 6'h0;
-        end else begin
-            bit_counter <= bit_counter + 6'h1;
-        end
-        // LRCLK: low for bits 0-31 (left), high for bits 32-63 (right)
-        lrclk <= bit_counter[5];
-    end
-end
-
-// =============================================================================
-// Shift register — load on LRCLK transition, shift on BCLK falling edge
-//
-// I2S format: data transitions on falling BCLK, one cycle after LRCLK edge.
-// So we load the shift register one BCLK after the transition.
-//
-// Shift register is 16 bits. After 16 bits are sent the remaining
-// 16 BCLK cycles of each half-frame output 0 (padding for 16-bit in 32-bit slot).
-// =============================================================================
-logic [15:0] shift_reg;
-logic [3:0]  bit_index;     // which bit of the 16-bit word we're sending (0-15)
-logic        sending;        // true during the 16 data bits
-
-always @(posedge clk) begin
-    if (!rst_n) begin
-        shift_reg  <= 16'h0;
-        bit_index  <= 4'h0;
-        sending    <= 1'b0;
-        data       <= 1'b0;
+        clk_div    <= 4'h0;
+        bit_count  <= 6'h0;
         sample_req <= 1'b0;
     end else begin
         sample_req <= 1'b0;
 
-        if (bclk_fall) begin
-            // Detect LRCLK transitions (bit 0 and bit 32 of frame)
-            if (bit_counter == 6'd0) begin
-                // Left channel start — load left sample, delay one cycle (I2S format)
-                shift_reg <= left_in;
-                bit_index <= 4'h0;
-                sending   <= 1'b1;
-                data      <= left_in[15];   // MSB first
-            end else if (bit_counter == 6'd32) begin
-                // Right channel start
-                shift_reg  <= right_in;
-                bit_index  <= 4'h0;
-                sending    <= 1'b1;
-                data       <= right_in[15];
-                // Request new sample pair — gives the voice engine one full
-                // frame period (1/48kHz = ~1024 clk cycles) to produce it
+        if (clk_div == HALF_PERIOD - 1) begin
+            clk_div <= 4'h0;
+            if (bit_count == 6'd63) begin
+                bit_count  <= 6'h0;
                 sample_req <= 1'b1;
-            end else if (sending) begin
-                if (bit_index == 4'd14) begin
-                    // Last shift — next cycle outputs bit 0, then padding
-                    data      <= shift_reg[14];
-                    shift_reg <= {shift_reg[13:0], 1'b0};
-                    bit_index <= bit_index + 4'h1;
-                end else if (bit_index == 4'd15) begin
-                    // Done with data bits — output 0 for padding
-                    data    <= 1'b0;
-                    sending <= 1'b0;
-                end else begin
-                    data      <= shift_reg[14];
-                    shift_reg <= {shift_reg[13:0], 1'b0};
-                    bit_index <= bit_index + 4'h1;
-                end
             end else begin
-                data <= 1'b0;   // padding bits
+                bit_count <= bit_count + 6'h1;
             end
+        end else begin
+            clk_div <= clk_div + 4'h1;
         end
+    end
+end
+
+// Sample latches
+logic [15:0] left_latch;
+logic [15:0] right_latch;
+
+always @(posedge clk) begin
+    if (!rst_n) begin
+        left_latch  <= 16'h0;
+        right_latch <= 16'h0;
+    end else if (sample_req) begin
+        left_latch  <= left_in;
+        right_latch <= right_in;
+    end
+end
+
+// Shift register — updates when bclk_int goes high (= BCLK output falling edge)
+logic [15:0] shift_reg;
+
+always @(posedge clk) begin
+    if (!rst_n) begin
+        shift_reg <= 16'h0;
+        data      <= 1'b0;
+    end else if (clk_div == HALF_PERIOD - 1) begin
+        case (bit_count)
+            6'd0: begin
+                shift_reg <= {left_latch[14:0], 1'b0};
+                data      <= left_latch[15];
+            end
+            6'd32: begin
+                shift_reg <= {right_latch[14:0], 1'b0};
+                data      <= right_latch[15];
+            end
+            6'd1,  6'd2,  6'd3,  6'd4,  6'd5,  6'd6,  6'd7,
+            6'd8,  6'd9,  6'd10, 6'd11, 6'd12, 6'd13, 6'd14, 6'd15,
+            6'd33, 6'd34, 6'd35, 6'd36, 6'd37, 6'd38, 6'd39,
+            6'd40, 6'd41, 6'd42, 6'd43, 6'd44, 6'd45, 6'd46, 6'd47: begin
+                data      <= shift_reg[15];
+                shift_reg <= {shift_reg[14:0], 1'b0};
+            end
+            default: data <= 1'b0;
+        endcase
     end
 end
 
